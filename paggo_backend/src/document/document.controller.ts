@@ -22,11 +22,11 @@ import { extname, join } from 'path';
 import { createReadStream, existsSync, readFileSync, unlinkSync } from 'fs';
 import { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
-import { convertPdfToImage } from '../utils/pdf-to-image';
+import { extractTextFromPdf } from '../utils/pdf-to-image';
+import * as Tesseract from 'tesseract.js';
 import { explainWithGemini } from '../utils/gemini';
 import { createChatCompletion } from '../utils/gemini';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import * as Tesseract from 'tesseract.js';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
@@ -67,14 +67,19 @@ export class DocumentController {
 
       if (!user) {
         throw new NotFoundException('User not found');
-      }      const extension = extname(file.originalname).toLowerCase();
-      let imagePath = file.path;
+      }
+
+      const extension = extname(file.originalname).toLowerCase();
+      let extractedText = '';
 
       if (extension === '.pdf') {
-        imagePath = await convertPdfToImage(file.path);
-      } 
-      const ocrResult = await Tesseract.recognize(imagePath, 'por+eng');
-      const extractedText = ocrResult.data.text;
+        // For PDFs, extract text directly
+        extractedText = await extractTextFromPdf(file.path);
+      } else {
+        // For images, use OCR
+        const ocrResult = await Tesseract.recognize(file.path, 'por+eng');
+        extractedText = ocrResult.data.text;
+      }
 
       const document = await this.prisma.document.create({
         data: {

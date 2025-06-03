@@ -1,20 +1,18 @@
-import * as path from 'path';
 import * as fs from 'fs';
-import * as poppler from 'pdf-poppler';
+import * as pdfParse from 'pdf-parse';
 
-export async function convertPdfToImage(pdfPath: string): Promise<string> {
-  const outputBaseName = path.join('./uploads', 'converted');
-  const options = {
-    format: 'png',
-    out_dir: './uploads',
-    out_prefix: 'converted',
-  };
-
-  await poppler.convert(pdfPath, options);
-  const outputPath = `${outputBaseName}-1.png`;
-  if (!fs.existsSync(outputPath)) {
-    throw new Error('PDF to image conversion failed');
+// Rename function since we're no longer converting to image
+export async function extractTextFromPdf(pdfPath: string): Promise<string> {
+  try {
+    // Read the PDF file
+    const dataBuffer = fs.readFileSync(pdfPath);
+    
+    // Parse PDF and extract text
+    const pdfData = await pdfParse(dataBuffer);
+    
+    // Return the extracted text
+    return pdfData.text;
+  } catch (error) {
+    throw new Error(`Error extracting text from PDF: ${error.message}`);
   }
-
-  return outputPath;
 }
