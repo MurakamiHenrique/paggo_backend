@@ -10,14 +10,18 @@ import { OcrResult, OcrOptions } from './ocr.types';
 export class OcrService implements OnModuleInit, OnModuleDestroy {
   private worker: Worker;
   private cache: Map<string, OcrResult> = new Map();
-  private readonly cacheDir = './cache';
+  private readonly cacheDir = './cache'; 
 
   async onModuleInit() {
-    // Criar diretório de cache se não existir
     if (!fs.existsSync(this.cacheDir)) {
       fs.mkdirSync(this.cacheDir);
     }
-    this.worker = await createWorker('eng+por');
+
+    this.worker = await createWorker('eng+por', 1, {
+    });
+    await this.worker.setParameters({
+      tessedit_pagesegmode: 3,
+    });
   }
 
   async onModuleDestroy() {
@@ -26,38 +30,15 @@ export class OcrService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async preprocessImage(filePath: string): Promise<string> {
-    const outputPath = path.join(this.cacheDir, `preprocessed_${path.basename(filePath)}`);
-    
-    await sharp(filePath)
-      // Converter para escala de cinza
+  private async preprocessImageToBuffer(filePath: string): Promise<Buffer> {
+    return await sharp(filePath)
       .grayscale()
-      // Aumentar contraste usando gamma
-      .gamma(1.2)
-      // Normalizar cores
-      .normalize()
-      // Redimensionar mantendo aspecto, mas limitando tamanho
-      .resize(2000, 2000, {
-        fit: 'inside',
-        withoutEnlargement: true
+      .resize(5000, 5000, { 
+        fit: 'inside',          
+        withoutEnlargement: true 
       })
-      // Remover ruído
-      .median(1)
-      // Ajustar brilho
-      .modulate({
-        brightness: 1.1
-      })
-      // Ajustar nitidez
-      .sharpen({
-        sigma: 1,
-        m1: 0.5,
-        m2: 0.5
-      })
-      // Salvar com alta qualidade
-      .png({ quality: 100 })
-      .toFile(outputPath);
-    
-    return outputPath;
+      .jpeg({ quality: 20 }) 
+      .toBuffer(); 
   }
 
   private getCacheKey(filePath: string, options?: OcrOptions): string {
@@ -69,50 +50,26 @@ export class OcrService implements OnModuleInit, OnModuleDestroy {
     try {
       const cacheKey = this.getCacheKey(filePath, options);
       
-      // Verificar cache
       const cached = this.cache.get(cacheKey);
       if (cached) {
         return cached;
       }
 
-      if (!this.worker) {
-        this.worker = await createWorker('eng+por');
-      }
-
-      // Pré-processar imagem
-      const preprocessedPath = await this.preprocessImage(filePath);
+      const imageBuffer = await this.preprocessImageToBuffer(filePath);
       
-      // Configurar reconhecimento
-      const config = {
-        lang: options?.lang || 'eng+por',
-      };
-
-      // Realizar OCR
-      const { data: { text, confidence } } = await this.worker.recognize(preprocessedPath);
+      const { data: { text, confidence } } = await this.worker.recognize(imageBuffer);
       
-      // Limpar texto
       const cleanedText = text
-        .trim()
-        // Remover múltiplos espaços em branco
-        .replace(/\s+/g, ' ')
-        // Remover quebras de linha desnecessárias
-        .replace(/(\r\n|\n|\r)/gm, ' ')
-        .trim();
-
+        .replace(/\r\n|\r/g, '\n') 
+        .replace(/[ \t]+/g, ' ')  
+        .replace(/\n\s*\n/g, '\n\n')
+        .trim(); 
       const result = {
         text: cleanedText,
         confidence
       };
 
-      // Armazenar no cache
       this.cache.set(cacheKey, result);
-
-      // Limpar arquivo pré-processado
-      try {
-        fs.unlinkSync(preprocessedPath);
-      } catch (error) {
-        console.warn('Error cleaning up preprocessed file:', error);
-      }
 
       return result;
     } catch (error) {
@@ -124,7 +81,6 @@ export class OcrService implements OnModuleInit, OnModuleDestroy {
     try {
       const cacheKey = this.getCacheKey(filePath);
       
-      // Verificar cache
       const cached = this.cache.get(cacheKey);
       if (cached) {
         return cached.text;
@@ -132,16 +88,14 @@ export class OcrService implements OnModuleInit, OnModuleDestroy {
 
       const dataBuffer = fs.readFileSync(filePath);
       const pdfData = await pdfParse(dataBuffer, {
-        // Máximo de páginas para processar
-        max: 50
+        max: 50 
       });
 
       const result = {
         text: pdfData.text.trim(),
-        confidence: 100
+        confidence: 100 
       };
 
-      // Armazenar no cache
       this.cache.set(cacheKey, result);
 
       return result.text;

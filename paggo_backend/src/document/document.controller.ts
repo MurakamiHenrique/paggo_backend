@@ -22,8 +22,7 @@ import { extname, join } from 'path';
 import { createReadStream, existsSync, readFileSync, unlinkSync } from 'fs';
 import { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
-import { extractTextFromPdf } from '../utils/pdf-to-image';
-import * as Tesseract from 'tesseract.js';
+import { OcrService } from '../utils/ocr.service';
 import { explainWithGemini } from '../utils/gemini';
 import { createChatCompletion } from '../utils/gemini';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
@@ -31,7 +30,10 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
 export class DocumentController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ocrService: OcrService
+  ) {}
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file', {
@@ -50,7 +52,8 @@ export class DocumentController {
         cb(null, true);
       }
     },
-    limits: { fileSize: 10 * 1024 * 1024 }  }))
+    limits: { fileSize: 10 * 1024 * 1024 }
+  }))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Query('lang') lang: string = 'eng',
@@ -59,6 +62,7 @@ export class DocumentController {
     if (!file) {
       throw new BadRequestException('File is required');
     }
+
     try {
       const userId = req.user.userId;
       const user = await this.prisma.user.findUnique({
@@ -71,14 +75,24 @@ export class DocumentController {
 
       const extension = extname(file.originalname).toLowerCase();
       let extractedText = '';
+      
+      try {
+        if (extension === '.pdf') {
+          // For PDFs, extract text directly
+          extractedText = await this.ocrService.extractTextFromPdf(file.path);
+        } else {
+          // For images, use optimized OCR with preprocessing
+          const ocrResult = await this.ocrService.extractTextFromImage(file.path, {
+            lang: lang || 'eng+por'
+          });
+          extractedText = ocrResult.text;
+        }
 
-      if (extension === '.pdf') {
-        // For PDFs, extract text directly
-        extractedText = await extractTextFromPdf(file.path);
-      } else {
-        // For images, use OCR
-        const ocrResult = await Tesseract.recognize(file.path, 'por+eng');
-        extractedText = ocrResult.data.text;
+        // Log success for monitoring
+        console.log(`Successfully extracted text from ${file.originalname}`);
+      } catch (error) {
+        console.error(`Error extracting text from ${file.originalname}:`, error);
+        throw new BadRequestException(`Text extraction failed: ${error.message}`);
       }
 
       const document = await this.prisma.document.create({
