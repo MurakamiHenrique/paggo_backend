@@ -89,7 +89,6 @@ export class DocumentController {
         }
 
         // Log success for monitoring
-        console.log(`Successfully extracted text from ${file.originalname}`);
       } catch (error) {
         console.error(`Error extracting text from ${file.originalname}:`, error);
         throw new BadRequestException(`Text extraction failed: ${error.message}`);
@@ -152,9 +151,7 @@ export class DocumentController {
   @Get('history')
   async getDocumentHistory(@Request() req) {
     try {
-      console.log('User from request:', req.user);
       const userId = req.user.userId;
-      console.log('Finding documents for user:', userId);
       
       const documents = await this.prisma.document.findMany({
         where: {
@@ -170,7 +167,6 @@ export class DocumentController {
           createdAt: true
         }
       });
-      console.log('Documents found:', documents);
       return documents;
 
     } catch (error) {

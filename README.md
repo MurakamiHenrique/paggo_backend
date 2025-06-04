@@ -42,40 +42,33 @@ Siga os passos abaixo para configurar e rodar a solução na sua máquina local.
 
 ### Pré-requisitos
 
-  * **Node.js** (versão 18)
+  * **Node.js** (versão 18 ou superior recomendada)
   * **npm** (Node Package Manager)
   * **Git**
 
 ### 4.1. Configuração e Execução do Backend
 
 1.  **Clone o repositório do backend:**
-
     ```bash
     git clone https://github.com/MurakamiHenrique/paggo_backend.git
     cd paggo_backend
     ```
-
 2.  **Instale as dependências:**
-
     ```bash
     npm install
     ```
-
-3.  **Adicione o arquivo `.env`:**
-    O arquivo `.env` com as configurações de ambiente (incluindo a `DATABASE_URL` do Supabase e a `GEMINI_API_KEY`) será **encaminhado separadamente no arquivo `.zip`** do projeto. Coloque-o na raiz da pasta `paggo_backend`.
-
+3.  **Gere o cliente Prisma:**
+    ```bash
+    npx prisma generate
+    ```
 4.  **Execute as migrações do banco de dados:**
-
     ```bash
     npx prisma migrate dev --name init
     ```
-
 5.  **Inicie o serviço de backend:**
-
     ```bash
     npm run start:dev
     ```
-
     O backend estará rodando em `http://localhost:3000`. **É crucial que o backend esteja rodando antes de iniciar o frontend.**
 
 ### 4.2. Configuração e Execução do Frontend
@@ -89,10 +82,7 @@ Siga os passos abaixo para configurar e rodar a solução na sua máquina local.
     ```bash
     npm install
     ```
-3.  **Adicione o arquivo `.env.local`:**
-    O arquivo `.env.local` com as configurações de ambiente para a chamada do backend local.
-    ```
-4.  **Inicie o serviço de frontend:**
+3.  **Inicie o serviço de frontend:**
     ```bash
     npm run dev
     ```
