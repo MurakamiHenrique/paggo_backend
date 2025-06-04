@@ -27,12 +27,23 @@ Note que o **upload e o processamento de arquivos na versão deployada podem lev
 
 ## 3\. Credenciais de Teste
 
-Para testar a plataforma, você pode usar o seguinte usuário pré-cadastrado:
+Para testar a plataforma, você pode usar os seguintes usuários pré-cadastrados:
 
-  * **Email:** `admin@admin.com`
-  * **Senha:** `senhaadmin`
+  * **Para o Ambiente Deployado (principal):**
 
-**Observação:** Novos usuários podem ser criados e usados na plataforma. O histórico de documentos e interações é **único para cada usuário**.
+      * **Email:** `admin@deploy.com`
+      * **Senha:** `admindeploy`
+
+  * **Para o Ambiente Local:**
+
+      * **Email:** `local@local.com`
+      * **Senha:** `senhalocal`
+
+**Observação Crucial sobre Consistência de Dados:**
+
+Para evitar conflitos de permanência de arquivos entre os ambientes local e de deploy no upload e download, **utilize um usuário exclusivamente em um único ambiente (ou local, ou deployado).** O fluxo de upload, chat e download de documentos funciona corretamente em cada ambiente de forma isolada.
+
+O histórico de documentos e interações é **único para cada usuário**.
 
 -----
 
@@ -87,5 +98,3 @@ Siga os passos abaixo para configurar e rodar a solução na sua máquina local.
     npm run dev
     ```
     O frontend estará rodando em `http://localhost:3001`.
-
------
