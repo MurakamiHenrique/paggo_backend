@@ -15,6 +15,8 @@ import {
   UseGuards,
   StreamableFile
 } from '@nestjs/common';
+import { createChatCompletion } from '../utils/gemini';
+import { Part } from '@google/generative-ai';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -23,8 +25,6 @@ import { createReadStream, existsSync, readFileSync, unlinkSync } from 'fs';
 import { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcrService } from '../utils/ocr.service';
-import { explainWithGemini } from '../utils/gemini';
-import { createChatCompletion } from '../utils/gemini';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 @Controller('documents')
@@ -78,17 +78,14 @@ export class DocumentController {
       
       try {
         if (extension === '.pdf') {
-          // For PDFs, extract text directly
           extractedText = await this.ocrService.extractTextFromPdf(file.path);
         } else {
-          // For images, use optimized OCR with preprocessing
           const ocrResult = await this.ocrService.extractTextFromImage(file.path, {
             lang: lang || 'eng+por'
           });
           extractedText = ocrResult.text;
         }
 
-        // Log success for monitoring
       } catch (error) {
         console.error(`Error extracting text from ${file.originalname}:`, error);
         throw new BadRequestException(`Text extraction failed: ${error.message}`);
@@ -125,16 +122,29 @@ export class DocumentController {
   ) {
     const document = await this.prisma.document.findUnique({
       where: { id: documentId },
-      include: { interactions: true },
+      include: {
+        interactions: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
     });
 
     if (!document) {
       throw new NotFoundException('Document not found');
     }
 
+    const conversationHistoryForLLM: { role: 'user' | 'model'; parts: Part[] }[] =
+      document.interactions.flatMap(interaction => [
+        { role: 'user', parts: [{ text: interaction.prompt }] },
+        { role: 'model', parts: [{ text: interaction.response }] }
+      ]);
+
     const answer = await createChatCompletion(
       document.extractedText,
-      body.question
+      body.question,
+      conversationHistoryForLLM
     );
 
     await this.prisma.lLMInteraction.create({
@@ -146,7 +156,7 @@ export class DocumentController {
     });
 
     return { answer };
-  }  
+  }
   
   @Get('history')
   async getDocumentHistory(@Request() req) {
